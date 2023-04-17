@@ -29,7 +29,7 @@ class Cache:
         self.tag = [0 for x in range(numSets)]
 
 def print_cache_l1(self):
-    print("===== L contents =====")
+    print("===== L1 contents =====")
     for set_idx, (line_set, dirty_set) in enumerate(zip(self.line, self.dirty)):
         print(f"Set {set_idx: <4}:", end=" ")
         for line_val, dirty_val in zip(line_set, dirty_set):
