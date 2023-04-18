@@ -9,7 +9,7 @@ import math
 # <WB> Write-back policy: 0 means write-through, 1 means write-back
 # <TRACE_FILE> trace file name with full path
 # Example:
-# "args": ["16", "1024", "2", "8192", "4", "0", "0", "filepath/gcc_trace.txt" ]
+#"args": ["16", "1024", "1", "8192", "4", "0", "0", "go_trace.txt" ]
 
 
 #Arrays to hold information from the input file 
@@ -132,7 +132,8 @@ l2_miss = 0
 l2_hit_count = 0
 l2_miss_count = 0
 
-if replacement == "1": #FIFO
+
+if replacement == "1":  # FIFO
     for t, i in enumerate(l1_index):
         for j in range(l1_assoc):
             if cacheL1.line[i][j] == l1_tag[t]:
@@ -145,25 +146,30 @@ if replacement == "1": #FIFO
                 break
         else:
             miss += 1
+            l2_hit = False
+            evict_index = None
             for j in range(l1_assoc):
                 if cacheL1.data[i][j] == old:
-                    if cacheL1.line[i][j] == 0:
-                        if mode[t] == "R":
-                            l1_read += 1
-                            l1_read_misses += 1
-                            cacheL1.dirty[i][j] = 0
-                        if mode[t] == "W":
-                            l1_write_misses += 1
-                            l1_writes += 1
-                            cacheL1.dirty[i][j] = dirty
-                        cacheL1.line[i][j] = l1_tag[t]
-                        cacheL1.data[i][j] = new
-                        break
-            else:
+                    if cacheL1.dirty[i][j] == dirty:
+                        l1_write_back+=1
+                    evict_index = j
+                    if mode[t] == "R":
+                        l1_read += 1
+                        l1_read_misses += 1
+                        cacheL1.dirty[i][j] = 0
+                    if mode[t] == "W":
+                        l1_write_misses += 1
+                        l1_writes += 1
+                        cacheL1.dirty[i][j] = dirty
+                    cacheL1.line[i][j] = l1_tag[t]
+                    cacheL1.data[i][j] = new
+                    break
+            if evict_index is None:
                 for k in range(l1_assoc):
                     cacheL1.data[i][k] = old
                 if cacheL1.dirty[i][0] == dirty:
                     write += 1
+                    l1_write_back+=1
                 if mode[t] == "R":
                     l1_read += 1
                     l1_read_misses += 1
@@ -176,25 +182,89 @@ if replacement == "1": #FIFO
                 cacheL1.data[i][0] = new
 
             if l2_cacheSize != 0:
-                l2_miss = True
                 for j in range(l2_assoc):
                     if cacheL2.line[l2_index[t]][j] == l2_tag[t]:
                         l2_hit = True
-                        l2_miss = False
                         break
 
-                if l2_miss:
+                if not l2_hit:
+                    evict_index = None
                     for j in range(l2_assoc):
                         if cacheL2.data[l2_index[t]][j] == old:
-                            if cacheL2.line[l2_index[t]][j] == 0:
-                                cacheL2.line[l2_index[t]][j] = l2_tag[t]
-                                cacheL2.data[l2_index[t]][j] = new
-                                break
-                    else:
+                            evict_index = j
+                            cacheL2.line[l2_index[t]][j] = l2_tag[t]
+                            cacheL2.data[l2_index[t]][j] = new
+                            break
+                    if evict_index is None:
                         for k in range(l2_assoc):
                             cacheL2.data[l2_index[t]][k] = old
                         cacheL2.line[l2_index[t]][0] = l2_tag[t]
                         cacheL2.data[l2_index[t]][0] = new
+
+
+# if replacement == "1": #FIFO
+#     for t, i in enumerate(l1_index):
+#         for j in range(l1_assoc):
+#             if cacheL1.line[i][j] == l1_tag[t]:
+#                 hit += 1
+#                 if mode[t] == "R":
+#                     l1_read += 1
+#                 if mode[t] == "W":
+#                     l1_writes += 1
+#                     cacheL1.dirty[i][j] = dirty
+#                 break
+#         else:
+#             miss += 1
+#             for j in range(l1_assoc):
+#                 if cacheL1.data[i][j] == old:
+#                     if cacheL1.line[i][j] == 0:
+#                         if mode[t] == "R":
+#                             l1_read += 1
+#                             l1_read_misses += 1
+#                             cacheL1.dirty[i][j] = 0
+#                         if mode[t] == "W":
+#                             l1_write_misses += 1
+#                             l1_writes += 1
+#                             cacheL1.dirty[i][j] = dirty
+#                         cacheL1.line[i][j] = l1_tag[t]
+#                         cacheL1.data[i][j] = new
+#                         break
+#             else:
+#                 for k in range(l1_assoc):
+#                     cacheL1.data[i][k] = old
+#                 if cacheL1.dirty[i][0] == dirty:
+#                     write += 1
+#                 if mode[t] == "R":
+#                     l1_read += 1
+#                     l1_read_misses += 1
+#                     cacheL1.dirty[i][0] = 0
+#                 if mode[t] == "W":
+#                     l1_write_misses += 1
+#                     l1_writes += 1
+#                     cacheL1.dirty[i][0] = dirty
+#                 cacheL1.line[i][0] = l1_tag[t]
+#                 cacheL1.data[i][0] = new
+
+#             if l2_cacheSize != 0:
+#                 l2_miss = True
+#                 for j in range(l2_assoc):
+#                     if cacheL2.line[l2_index[t]][j] == l2_tag[t]:
+#                         l2_hit = True
+#                         l2_miss = False
+#                         break
+
+#                 if l2_miss:
+#                     for j in range(l2_assoc):
+#                         if cacheL2.data[l2_index[t]][j] == old:
+#                             if cacheL2.line[l2_index[t]][j] == 0:
+#                                 cacheL2.line[l2_index[t]][j] = l2_tag[t]
+#                                 cacheL2.data[l2_index[t]][j] = new
+#                                 break
+#                     else:
+#                         for k in range(l2_assoc):
+#                             cacheL2.data[l2_index[t]][k] = old
+#                         cacheL2.line[l2_index[t]][0] = l2_tag[t]
+#                         cacheL2.data[l2_index[t]][0] = new
 
 # if replacement == "1": #FIFO
 #     for t, i in enumerate(l1_index):  #t is the counter of the for loop, i is the actual index for l1
@@ -354,6 +424,7 @@ if replacement == "0":  # LRU
                         l2_read_misses += 1
                     elif mode[t] == "W":
                         l2_writes += 1
+                        l2_write_misses+=1
 
                     
 
@@ -363,6 +434,8 @@ if replacement == "0":  # LRU
                         l2_write_back += 1
                     cacheL2.line[l2_num].insert(0, l2_tag[t])
                     cacheL2.dirty[l2_num].insert(0, dirty if mode[t] == "W" else 0)
+
+                    
 
 
                 #now whether there was an l2 hit or miss, a block will be evicted from l1 cache and placed into l2 cache, this part checks if its already in l2 cache
@@ -385,16 +458,12 @@ if replacement == "0":  # LRU
                     
                     #if the block wasnt in the l2 cache we need to evict a block and insert the new block from the l1 cache into l2
                     else:
-                        if mode[t] == "W":
-                            l2_write_misses+=1
                         l2_evicted_value = cacheL2.line[l2_num].pop(-1)
                         l2_evicted_dirty = cacheL2.dirty[l2_num].pop(-1)
                         if l2_evicted_dirty == dirty:
                             l2_write_back += 1
                         cacheL2.line[l2_num].insert(0, l2_evicted_l1_tag)
-                        cacheL2.dirty[l2_num].insert(0, dirty if mode[t] == "W" else 0)
-
-
+                        cacheL2.dirty[l2_num].insert(0, l1_evicted_dirty)
 
 
 
@@ -402,7 +471,8 @@ if replacement == "0":  # LRU
 
 
 if replacement == "2":  # Optimal
-    for t, i in enumerate(l1_index):
+    for t, (i, l2_num) in enumerate(zip(l1_index, l2_index if l2_index else [None] * len(l1_index))):
+        # L1 cache handling
         for j in range(l1_assoc):
             if cacheL1.line[i][j] == l1_tag[t]:
                 hit += 1
@@ -416,39 +486,159 @@ if replacement == "2":  # Optimal
                         write += 1
                 break
         else:
-            miss+=1
-            #write += 1
-            # Cache miss
-            max_future_access = -1
-            farthest_block = -1
+            miss += 1
+            # Cache miss in L1
+            max_future_access_l1 = -1
+            farthest_block_l1 = -1
 
             for j in range(l1_assoc):
                 found = False
                 for future_t, (future_tag, future_index) in enumerate(zip(l1_tag[t + 1:], l1_index[t + 1:])):
                     if future_tag == cacheL1.line[i][j] and future_index == i:
                         found = True
-                        if future_t > max_future_access:
-                            max_future_access = future_t
-                            farthest_block = j
+                        if future_t > max_future_access_l1:
+                            max_future_access_l1 = future_t
+                            farthest_block_l1 = j
                         break
 
                 if not found:
-                    farthest_block = j
+                    farthest_block_l1 = j
                     break
 
-            # Evict the farthest_block and update the cache accordingly
-            if cacheL1.dirty[i][farthest_block] == 1:
-                write+=1
+            if cacheL1.dirty[i][farthest_block_l1] == 1:
+                write += 1
+                l1_write_back += 1
             if mode[t] == "R":
                 l1_read_misses += 1
                 l1_read += 1
-                cacheL1.dirty[i][farthest_block] = 0
+                cacheL1.dirty[i][farthest_block_l1] = 0
             if mode[t] == "W":
                 l1_write_misses += 1
                 l1_writes += 1
-                cacheL1.dirty[i][farthest_block] = 1
+                cacheL1.dirty[i][farthest_block_l1] = 1
 
-            cacheL1.line[i][farthest_block] = l1_tag[t]
+            cacheL1.line[i][farthest_block_l1] = l1_tag[t]
+
+            # L2 cache handling if exists
+            if l2_cacheSize != 0:
+                for j in range(l2_assoc):
+                    if cacheL2.line[l2_num][j] == l2_tag[t]:
+                        l2_hit_count += 1
+                        if mode[t] == "R":
+                            l2_read += 1
+                        if mode[t] == "W":
+                            l2_writes += 1
+                            cacheL2.dirty[l2_num][j] = dirty
+                        break
+                else:
+                    l2_miss_count += 1
+                    # Cache miss in L2
+                    max_future_access_l2 = -1
+                    farthest_block_l2 = -1
+
+                    for j in range(l2_assoc):
+                        found = False
+                        for future_t, (future_tag, future_index) in enumerate(zip(l2_tag[t + 1:], l2_index[t + 1:])):
+                            if future_tag == cacheL2.line[l2_num][j] and future_index == l2_num:
+                                found = True
+                                if future_t > max_future_access_l2:
+                                    max_future_access_l2 = future_t
+                                    farthest_block_l2 = j
+                                break
+
+                        if not found:
+                            farthest_block_l2 = j
+                            break
+
+                    if cacheL2.dirty[l2_num][farthest_block_l2] == 1:
+                        l2_write_back += 1
+                    if mode[t] == "R":
+                        l2_read_misses += 1
+                        l2_read += 1
+                        cacheL2.dirty[l2_num][farthest_block_l2] = 0
+                    if mode[t] == "W":
+                        l2_writes += 1
+                        l2_write_misses += 1
+                        cacheL2.dirty[l2_num][farthest_block_l2] = 1
+
+                    cacheL2.line[l2_num][farthest_block_l2] = l2_tag[t]
+
+                    # Move evicted block from L1 to L2
+                    l2_evicted_l1_tag = reformat_l1_tag_to_l2(cacheL1.line[i][farthest_block_l1], l1_setNumber, l2_setNumber)
+                    if l2_evicted_l1_tag != 0:
+                        max_future_access_l2_evicted = -1
+                        farthest_block_l2_evicted = -1
+
+                        for j in range(l2_assoc):
+                            found = False
+                            for future_t, (future_tag, future_index) in enumerate(zip(l2_tag[t + 1:], l2_index[t + 1:])):
+                                if future_tag == cacheL2.line[l2_num][j] and future_index == l2_num:
+                                    found = True
+                                    if future_t > max_future_access_l2_evicted:
+                                        max_future_access_l2_evicted = future_t
+                                        farthest_block_l2_evicted = j
+                                    break
+
+                            if not found:
+                                farthest_block_l2_evicted = j
+                                break
+
+                        if cacheL2.dirty[l2_num][farthest_block_l2_evicted] == 1:
+                            l2_write_back += 1
+                        cacheL2.line[l2_num][farthest_block_l2_evicted] = l2_evicted_l1_tag
+                        cacheL2.dirty[l2_num][farthest_block_l2_evicted] = cacheL1.dirty[i][farthest_block_l1]
+
+
+
+# if replacement == "2":  # Optimal
+#     for t, i in enumerate(l1_index):
+#         for j in range(l1_assoc):
+#             if cacheL1.line[i][j] == l1_tag[t]:
+#                 hit += 1
+#                 if mode[t] == "R":
+#                     l1_read += 1
+#                 if mode[t] == "W":
+#                     l1_writes += 1
+#                     cacheL1.dirty[i][j] = dirty
+#                 if wb == "0":
+#                     if mode[t] == "W":
+#                         write += 1
+#                 break
+#         else:
+#             miss+=1
+#             #write += 1
+#             # Cache miss
+#             max_future_access = -1
+#             farthest_block = -1
+
+#             for j in range(l1_assoc):
+#                 found = False
+#                 for future_t, (future_tag, future_index) in enumerate(zip(l1_tag[t + 1:], l1_index[t + 1:])):
+#                     if future_tag == cacheL1.line[i][j] and future_index == i:
+#                         found = True
+#                         if future_t > max_future_access:
+#                             max_future_access = future_t
+#                             farthest_block = j
+#                         break
+
+#                 if not found:
+#                     farthest_block = j
+#                     break
+
+#             # Evict the farthest_block and update the cache accordingly
+#             if cacheL1.dirty[i][farthest_block] == 1:
+#                 write+=1
+#                 l1_write_back+=1
+#             if mode[t] == "R":
+#                 l1_read_misses += 1
+#                 l1_read += 1
+#                 cacheL1.dirty[i][farthest_block] = 0
+#             if mode[t] == "W":
+#                 l1_write_misses += 1
+#                 l1_writes += 1
+#                 cacheL1.dirty[i][farthest_block] = 1
+
+#             cacheL1.line[i][farthest_block] = l1_tag[t]
 
 
 
